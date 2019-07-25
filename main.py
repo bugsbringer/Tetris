@@ -32,21 +32,18 @@ shapes = (
     (((0, -1), (1, 0), (1, -1)), )
 )
 
-blocks = (
-    pygame.transform.smoothscale(pygame.image.load("blocks/blue.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/green.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/red.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/sky.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/pink.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/purple.png"), (cell_size, cell_size)),
-    pygame.transform.smoothscale(pygame.image.load("blocks/yellow.png"), (cell_size, cell_size)),
-)
+colors = ('blue', 'green', 'red', 'sky', 'pink', 'purple', 'yellow')
+textures = []
+for color in colors:
+    img = pygame.image.load("textures/" + color + "-min.png")
+    textures.append(pygame.transform.scale(img, (cell_size, cell_size)))
 
 
 class Cell(object):
 
     def __init__(self, parent, coords):
-        self.parent = parent
+        self.screen = parent.screen
+        self.texture = parent.texture
         self.coords = coords
         self.rect = pygame.rect.Rect(self.coords, (cell_size, cell_size))
 
@@ -64,10 +61,10 @@ class Cell(object):
         self.rect.left, self.rect.top = self.coords
 
     def draw(self):
-        if self.parent.projection:
-            pygame.draw.rect(self.parent.screen, (64, 64, 64), self.rect)
+        if self.texture:
+            self.screen.blit(self.texture, self.coords)
         else:
-            self.parent.screen.blit(self.parent.texture, self.coords)
+            pygame.draw.rect(self.screen, (64, 64, 64), self.rect)
 
 
 class Shape(object):
@@ -76,8 +73,7 @@ class Shape(object):
     def __init__(self, screen, pos, index=0, projection=False):
         self.screen = screen
         self.x, self.y = pos
-        self.projection = projection
-        self.texture = blocks[index]
+        self.texture = textures[index] if not projection else None
         self.shape = shapes[index]
         self.rects = [Cell(self, pos) for _ in range(4)]
         self.update()
@@ -100,7 +96,7 @@ class Shape(object):
         for i, item in enumerate(self.shape[self.rotation], 1):
             x = self.x + item[0] * cell_size
             y = self.y + item[1] * cell_size
-            self.rects[i].coords = (x, y)
+            self.rects[i].coords = x, y
             self.rects[i].update()
 
     def draw(self):
@@ -127,30 +123,22 @@ class Board(object):
 
 
 class Game(object):
-    def __init__(self):
-        pygame.init()
-
-        pygame.display.set_caption("Tetris")
-        self.Window = pygame.display.set_mode((532, 655))
-        self.font = pygame.font.SysFont('C:/Windows/Fonts/Consolas.ttf', 32)
+    def __init__(self, window):
+        self.Window = window
 
         self.board = Board(self.Window, 10, 10)
-        self.start_pos = self.board.get_cell_coords(4, 1)
+
+        self.start_pos = self.board.get_cell_coords(4, 0)
         self.preview_pos = self.board.get_cell_coords(12, 3)
         self.speed_pos = self.board.get_cell_coords(11, 5)
         self.linescount_pos = self.board.get_cell_coords(11, 6)
         self.score_pos = self.board.get_cell_coords(11, 7)
-
-        self.mainloop()
-
-        pygame.quit()
 
     def mainloop(self):
         self.run = True
         self.start_game()
         while self.run:
             self.event_handler()
-            self.project()
             self.draw()
 
     def event_handler(self):
@@ -179,7 +167,6 @@ class Game(object):
                         for i, rect in enumerate(self.current.rects[1:]):
 
                             if not self.board.area.contains(rect):
-
                                 if abs(form[i][0]) > abs(shift[0]):
                                     shift[0] = -form[i][0]
 
@@ -194,25 +181,26 @@ class Game(object):
                                 self.current.rotate(-dir)
                                 break
 
+                        self.project()
+
                     elif event.key == pygame.K_a or event.key == pygame.K_d:
                         shift = [-1, 0] if event.key == pygame.K_a else [1, 0]
 
                         self.current.move(shift[0], shift[1])
                         for rect in self.current.rects:
 
-                            if rect.rect.collidelist([i.rect for i in self.fallen]) != -1:
+                            if rect.rect.collidelist([i.rect for i in self.fallen]) != -1 or \
+                                    not self.board.area.contains(rect):
                                 self.current.move(-shift[0], -shift[1])
                                 break
 
-                            if not self.board.area.contains(rect):
-                                self.current.move(-shift[0], -shift[1])
-                                break
+                        self.project()
 
                     elif event.key == pygame.K_s:
                         self.falling()
 
                     elif event.key == pygame.K_SPACE:
-                        pygame.time.set_timer(pygame.USEREVENT, 15)
+                        pygame.time.set_timer(pygame.USEREVENT, 12)
 
                 if event.key == pygame.K_r:
                     self.start_game()
@@ -229,16 +217,16 @@ class Game(object):
 
         self.next_shape.draw()
 
-        render = self.font.render(f"Скорость: {self.speed}", 2, (255, 255, 255))
+        render = main_font.render(f"Скорость: {self.speed}", 2, (255, 255, 255))
         self.Window.blit(render, self.speed_pos)
 
-        render = self.font.render(f"Линии: {self.linescount}", 2, (255, 255, 255))
+        render = main_font.render(f"Линии: {self.linescount}", 2, (255, 255, 255))
         self.Window.blit(render, self.linescount_pos)
 
-        render = self.font.render(f"Очки: {self.score}", 2, (255, 255, 255))
+        render = main_font.render(f"Очки: {self.score}", 2, (255, 255, 255))
         self.Window.blit(render, self.score_pos)
 
-        render = self.font.render(f"R - restart", 2, (255, 255, 255))
+        render = main_font.render(f"R - restart", 2, (255, 255, 255))
         self.Window.blit(render, self.board.get_cell_coords(11, 19))
 
         pygame.display.update()
@@ -248,34 +236,29 @@ class Game(object):
         self.speed = 1
         self.linescount = 0
         self.score = 0
-        self.current = None
+
+        self.next = randint(0, 6)
         self.projection = Shape(self.Window, (0, 0), projection=True)
-        self.play = True
         self.new_shape()
-        self.project()
 
         pygame.time.set_timer(pygame.USEREVENT, 1000 // self.speed)
+
+        self.play = True
 
     def game_over(self):
         pygame.time.set_timer(pygame.USEREVENT, 0)
         self.play = False
 
     def new_shape(self):
-        if self.current:
-            for item in self.current.rects:
-                self.fallen.append(item)
-        else:
-            self.next = randint(0, 6)
-
-        posits = (self.board.get_cell_coords(4, 0),
-                  self.board.get_cell_coords(5, 0))
-
-        for item in self.fallen:
-            if item.coords in posits:
+        for rect in Shape(self.Window, self.start_pos, index=self.next).rects:
+            if rect.rect.collidelist([i.rect for i in self.fallen]) != -1:
                 self.game_over()
                 return
 
         self.current = Shape(self.Window, self.start_pos, index=self.next)
+        self.falling()
+        self.project()
+
         self.next = randint(0, 6)
         self.next_shape = Shape(self.Window, self.preview_pos, index=self.next)
 
@@ -283,23 +266,21 @@ class Game(object):
         self.current.move(0, 1)
         for rect in self.current.rects:
 
-            if rect.rect.collidelist([i.rect for i in self.fallen]) != -1:
+            if rect.rect.collidelist([i.rect for i in self.fallen]) != -1 \
+                    or not self.board.area.contains(rect):
                 self.current.move(0, -1)
                 self.dropped()
-                break
-
-            if not self.board.area.contains(rect):
-                self.current.move(0, -1)
-                self.dropped()
+                self.new_shape()
                 break
 
     def dropped(self):
-        self.new_shape()
+        for item in self.current.rects:
+            self.fallen.append(item)
 
         rows = {}
 
         for item in self.fallen:
-            rows[item.coords[1]] = rows.setdefault(item.coords[1], 0) + 1
+            rows[item.coords[1]] = rows.get(item.coords[1], 0) + 1
 
         sorted_keys = sorted(rows)
         sorted_vals = [rows[key] for key in sorted_keys]
@@ -308,7 +289,7 @@ class Game(object):
         for key, value in zip(sorted_keys, sorted_vals):
             if value == size[0]:
                 count += 1
-                for i, _ in reversed(list(enumerate(self.fallen))):
+                for i in reversed(range(len(self.fallen))):
                     if self.fallen[i].coords[1] == key:
                         self.fallen.pop(i)
 
@@ -332,26 +313,30 @@ class Game(object):
         pygame.time.set_timer(pygame.USEREVENT, (11 - self.speed) * 100)
 
     def project(self):
-        self.projection.x, self.projection.y= self.current.x, self.current.y
-        self.projection.shape = self.current.shape
-        self.projection.rotation = self.current.rotation
+        copyed_vars = ('x', 'y', 'shape', 'rotation')
+        for var in copyed_vars:
+            setattr(self.projection, var, getattr(self.current, var))
 
         calculate = True
         while calculate:
-
             self.projection.move(0, 1)
 
             for rect in self.projection.rects:
-                if rect.rect.collidelist([i.rect for i in self.fallen]) != -1:
-                    self.projection.move(0, -1)
-                    calculate = False
-                    break
+                if rect.rect.collidelist([i.rect for i in self.fallen]) != -1 \
+                        or not self.board.area.contains(rect):
 
-                if not self.board.area.contains(rect):
                     self.projection.move(0, -1)
                     calculate = False
                     break
 
 
 if __name__ == '__main__':
-    Game()
+    pygame.init()
+    pygame.display.set_caption('Tetris')
+    Window = pygame.display.set_mode((532, 655))
+    main_font = pygame.font.SysFont('C:/Windows/Fonts/Consolas.ttf', 32)
+    
+    Tetris = Game(Window)
+    Tetris.mainloop()
+
+    pygame.quit()
