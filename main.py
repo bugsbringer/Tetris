@@ -147,7 +147,7 @@ class Game(object):
                 self.run = False
 
             if self.play:
-                if event.type == pygame.USEREVENT and self.play:
+                if event.type == pygame.USEREVENT:
                     self.falling()
 
             else:
@@ -317,8 +317,7 @@ class Game(object):
         for var in copyed_vars:
             setattr(self.projection, var, getattr(self.current, var))
 
-        calculate = True
-        while calculate:
+        while True:
             self.projection.move(0, 1)
 
             for rect in self.projection.rects:
@@ -326,16 +325,19 @@ class Game(object):
                         or not self.board.area.contains(rect):
 
                     self.projection.move(0, -1)
-                    calculate = False
                     break
+            else:
+                continue
+
+            break
 
 
 if __name__ == '__main__':
     pygame.init()
     pygame.display.set_caption('Tetris')
     Window = pygame.display.set_mode((532, 655))
-    main_font = pygame.font.SysFont('C:/Windows/Fonts/Consolas.ttf', 32)
-    
+    main_font = pygame.font.Font('C:/Windows/Fonts/ARIALBD.TTF', 24)
+
     Tetris = Game(Window)
     Tetris.mainloop()
 
